@@ -69,7 +69,7 @@ impl Chippy {
             memory: [0; 4096],
             v: [0; 16],
             i: 0,
-            pc: 0, // programs start at 0x200
+            pc: 0,
             stack: [0; 16],
             sp: 0,
             display: [0; 64 * 32],
@@ -93,6 +93,7 @@ impl Chippy {
             i += 1;
         }
 
+        self.pc = 0x200;
         Ok(())
     }
 
@@ -333,7 +334,7 @@ impl Chippy {
                     0x0029 => {
                         let x: usize = ((opcode & 0x0F00) >> 8) as usize;
                         let character: u8 = self.v[x];
-                        self.i = character as u16 * 5;
+                        self.i = 0x50 + character as u16 * 5;
                     }
                     // 0xFx33: Store BCD representation of Vx in memory locations I, I+1, and I+2
                     0x0033 => {
@@ -413,8 +414,8 @@ impl Chippy {
             0xF0, 0x80, 0xF0, 0x80, 0x80, // F
         ];
 
-        for (i, character) in characters.iter().enumerate() {
-            self.memory[i] = *character;
+        for (i, &character) in characters.iter().enumerate() {
+            self.memory[0x50 + i] = character;
         }
     }
 
@@ -456,8 +457,8 @@ impl Chippy {
 
     //  Implemented from https://github.com/Rust-SDL2/rust-sdl2/blob/master/examples/window-properties.rs
     pub fn run(&mut self, game_path: &str) -> Result<(), String> {
-        self.load_game(game_path)?;
         self.init_font();
+        self.load_game(game_path)?;
         let sdl_context = sdl2::init()?;
         let video_subsystem = sdl_context.video()?;
 
