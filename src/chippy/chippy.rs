@@ -69,7 +69,7 @@ impl Chippy {
             memory: [0; 4096],
             v: [0; 16],
             i: 0,
-            pc: 0x200, // programs start at 0x200
+            pc: 0, // programs start at 0x200
             stack: [0; 16],
             sp: 0,
             display: [0; 64 * 32],
@@ -245,7 +245,8 @@ impl Chippy {
                 let y = self.v[((opcode & 0x00F0) >> 4) as usize] as usize;
                 let n = opcode & 0x000F;
 
-                self.v[0xF] = 0;
+                self.v[0xF] = 0; // Reset VF
+
                 for row in 0..n {
                     let pixel_row = self.memory[(self.i + row) as usize];
                     for col in 0..8 {
@@ -261,6 +262,9 @@ impl Chippy {
                         self.display[pixel_index] ^= pixel_value;
                     }
                 }
+
+                // Set `i` to the address following the sprite data
+                self.i += n;
             }
 
             // 0xEx**: Skip if key
@@ -320,9 +324,9 @@ impl Chippy {
                     }
                     // 0xFx29: Font Character, point to the font character in memory
                     0x0029 => {
-                        let x = ((opcode & 0x0F00) >> 8) as usize;
-                        let character = self.v[x];
-                        self.i = (character as u16 * 5) & 0xFFFF;
+                        let x: usize = ((opcode & 0x0F00) >> 8) as usize;
+                        let character: u8 = self.v[x];
+                        self.i = (character as u16 * 5);
                     }
                     // 0xFx33: Store BCD representation of Vx in memory locations I, I+1, and I+2
                     0x0033 => {
@@ -402,7 +406,6 @@ impl Chippy {
             [0xF0, 0x80, 0xF0, 0x80, 0x80], // F
         ];
 
-        // Put it at 050-09F
         for (i, character) in characters.iter().enumerate() {
             for (j, &byte) in character.iter().enumerate() {
                 self.memory[i * 5 + j] = byte;
