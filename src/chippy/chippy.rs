@@ -242,7 +242,7 @@ impl Chippy {
     }
 
     fn update_display(&mut self, canvas: &mut sdl2::render::Canvas<sdl2::video::Window>) {
-        // Scale the display by 10x
+        // Scale the display by 20x for better visibility
         canvas.set_scale(20.0, 20.0).unwrap();
 
         // Draw the display
@@ -259,8 +259,8 @@ impl Chippy {
     }
 
     //  Implemented from https://github.com/Rust-SDL2/rust-sdl2/blob/master/examples/window-properties.rs
-    pub fn run(&mut self) -> Result<(), String> {
-        self.load_game("/home/rithulk/dev/chippy/test/ibm.ch8")?;
+    pub fn run(&mut self, game_path: &str) -> Result<(), String> {
+        self.load_game(game_path)?;
         let sdl_context = sdl2::init()?;
         let video_subsystem = sdl_context.video()?;
 
@@ -295,7 +295,6 @@ impl Chippy {
             self.emulate_cycle();
             self.update_display(&mut canvas);
             canvas.present();
-            println!("{:?}", self.display);
         }
 
         Ok(())
