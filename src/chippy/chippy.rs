@@ -237,7 +237,6 @@ impl Chippy {
                 let x: usize = ((opcode & 0x0F00) >> 8) as usize;
                 let nn: u8 = (opcode & 0x00FF) as u8;
                 self.v[x] = rand::random::<u8>() & nn;
-                println!("Random number generated: {}", self.v[x]);
             }
             // 0xDxyn: DISPLAY
             0xD000 => {
