@@ -244,28 +244,31 @@ impl Chippy {
             0xD000 => {
                 let x = ((opcode & 0x0F00) >> 8) as usize;
                 let y = ((opcode & 0x00F0) >> 4) as usize;
-                let n = (opcode & 0x000F) as usize;
+                let n = opcode & 0x000F;
 
                 if n > 0 {
                     for row in 0..n {
-                        let sprite_byte = self.memory[(self.i as usize) + row];
-                        let y_pos = (self.v[y] as usize + row) % 32;
+                        let sprite_byte = self.memory[(self.i as usize) + row as usize];
+                        let y_pos = (self.v[y] as usize + row as usize) % 32;
 
                         for col in 0..8 {
                             let x_pos = (self.v[x] as usize + col) % 64;
                             let pixel_value = (sprite_byte >> (7 - col)) & 0x01;
 
                             let pixel_index = y_pos * 64 + x_pos;
+                            let old_pixel = self.display[pixel_index];
                             self.display[pixel_index] ^= pixel_value;
 
                             // Set VF if collision occurs
-                            if pixel_value == 1 && self.display[pixel_index] == 0 {
+                            if old_pixel == 1 && pixel_value == 1 && self.display[pixel_index] == 0
+                            {
                                 self.v[0xF] = 1;
                             }
                         }
                     }
                 }
             }
+
             // 0xEx**: Skip if key
             0xE000 => {
                 let x = ((opcode & 0x0F00) >> 8) as usize;
@@ -323,7 +326,9 @@ impl Chippy {
                     }
                     // 0xFx29: Font Character, point to the font character in memory
                     0x0029 => {
-                        self.i = self.v[x] as u16 * 5;
+                        let x = ((opcode & 0x0F00) >> 8) as usize;
+                        let character = self.v[x];
+                        self.i = (0x50 + (character as u16 * 5)) & 0xFFFF;
                     }
                     // 0xFx33: Store BCD representation of Vx in memory locations I, I+1, and I+2
                     0x0033 => {
@@ -371,10 +376,10 @@ impl Chippy {
         canvas.set_scale(20.0, 20.0).unwrap();
 
         // Draw the display
-        for (i, pixel) in self.display.iter().enumerate() {
+        for (i, &pixel) in self.display.iter().enumerate() {
             let x = (i % 64) as i32;
             let y = (i / 64) as i32;
-            if *pixel == 1 {
+            if pixel == 1 {
                 canvas.set_draw_color(Color::RGB(255, 255, 255));
             } else {
                 canvas.set_draw_color(Color::RGB(0, 0, 0));
@@ -384,28 +389,30 @@ impl Chippy {
     }
 
     fn init_font(&mut self) {
-        let characters = [
-            0xF0, 0x90, 0x90, 0x90, 0xF0, // 0
-            0x20, 0x60, 0x20, 0x20, 0x70, // 1
-            0xF0, 0x10, 0xF0, 0x80, 0xF0, // 2
-            0xF0, 0x10, 0xF0, 0x10, 0xF0, // 3
-            0x90, 0x90, 0xF0, 0x10, 0x10, // 4
-            0xF0, 0x80, 0xF0, 0x10, 0xF0, // 5
-            0xF0, 0x80, 0xF0, 0x90, 0xF0, // 6
-            0xF0, 0x10, 0x20, 0x40, 0x40, // 7
-            0xF0, 0x90, 0xF0, 0x90, 0xF0, // 8
-            0xF0, 0x90, 0xF0, 0x10, 0xF0, // 9
-            0xF0, 0x90, 0xF0, 0x90, 0x90, // A
-            0xE0, 0x90, 0xE0, 0x90, 0xE0, // B
-            0xF0, 0x80, 0x80, 0x80, 0xF0, // C
-            0xE0, 0x90, 0x90, 0x90, 0xE0, // D
-            0xF0, 0x80, 0xF0, 0x80, 0xF0, // E
-            0xF0, 0x80, 0xF0, 0x80, 0x80, // F
+        let characters: [[u8; 5]; 16] = [
+            [0xF0, 0x90, 0x90, 0x90, 0xF0], // 0
+            [0x20, 0x60, 0x20, 0x20, 0x70], // 1
+            [0xF0, 0x10, 0xF0, 0x80, 0xF0], // 2
+            [0xF0, 0x10, 0xF0, 0x10, 0xF0], // 3
+            [0x90, 0x90, 0xF0, 0x10, 0x10], // 4
+            [0xF0, 0x80, 0xF0, 0x10, 0xF0], // 5
+            [0xF0, 0x80, 0xF0, 0x90, 0xF0], // 6
+            [0xF0, 0x10, 0x20, 0x40, 0x40], // 7
+            [0xF0, 0x90, 0xF0, 0x90, 0xF0], // 8
+            [0xF0, 0x90, 0xF0, 0x10, 0xF0], // 9
+            [0xF0, 0x90, 0xF0, 0x90, 0x90], // A
+            [0xE0, 0x90, 0xE0, 0x90, 0xE0], // B
+            [0xF0, 0x80, 0x80, 0x80, 0xF0], // C
+            [0xE0, 0x90, 0x90, 0x90, 0xE0], // D
+            [0xF0, 0x80, 0xF0, 0x80, 0xF0], // E
+            [0xF0, 0x80, 0xF0, 0x80, 0x80], // F
         ];
 
         // Put it at 050-09F
         for (i, character) in characters.iter().enumerate() {
-            self.memory[i] = *character;
+            for (j, &byte) in character.iter().enumerate() {
+                self.memory[0x50 + i * 5 + j] = byte;
+            }
         }
     }
 
@@ -420,6 +427,28 @@ impl Chippy {
             self.audio_device.resume();
         } else {
             self.audio_device.pause();
+        }
+    }
+
+    fn map_keycode_to_chip8_key(&self, keycode: Keycode) -> Option<usize> {
+        match keycode {
+            Keycode::Num1 => Some(0x1),
+            Keycode::Num2 => Some(0x2),
+            Keycode::Num3 => Some(0x3),
+            Keycode::Num4 => Some(0xC),
+            Keycode::Q => Some(0x4),
+            Keycode::W => Some(0x5),
+            Keycode::E => Some(0x6),
+            Keycode::R => Some(0xD),
+            Keycode::A => Some(0x7),
+            Keycode::S => Some(0x8),
+            Keycode::D => Some(0x9),
+            Keycode::F => Some(0xE),
+            Keycode::Z => Some(0xA),
+            Keycode::X => Some(0x0),
+            Keycode::C => Some(0xB),
+            Keycode::V => Some(0xF),
+            _ => None,
         }
     }
 
@@ -453,6 +482,24 @@ impl Chippy {
                         keycode: Some(Keycode::Escape),
                         ..
                     } => break 'running,
+                    Event::KeyDown {
+                        keycode: Some(keycode),
+                        repeat: false,
+                        ..
+                    } => {
+                        if let Some(index) = self.map_keycode_to_chip8_key(keycode) {
+                            self.keypad[index] = true;
+                        }
+                    }
+                    // Handle key release events
+                    Event::KeyUp {
+                        keycode: Some(keycode),
+                        ..
+                    } => {
+                        if let Some(index) = self.map_keycode_to_chip8_key(keycode) {
+                            self.keypad[index] = false;
+                        }
+                    }
                     _ => {}
                 }
             }
