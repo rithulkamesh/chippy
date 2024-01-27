@@ -2,6 +2,7 @@
   This project has been built with reference to the following resources:
   http://devernay.free.fr/hacks/chip8/C8TECH10.HTM
   https://multigesture.net/articles/how-to-write-an-emulator-chip-8-interpreter/
+  https://tobiasvl.github.io/blog/write-a-chip-8-emulator/
 
   Testing resources have been obtained from the following:
   https://github.com/corax89/chip8-test-rom
