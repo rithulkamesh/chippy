@@ -182,7 +182,7 @@ impl Chippy {
             0x8000 => {
                 let x = ((opcode & 0x0F00) >> 8) as usize;
                 let y = ((opcode & 0x00F0) >> 4) as usize;
-                let n = opcode & 0x000F;
+                let n = opcode & 0x0F;
 
                 match n {
                     // 0x8xy0: Vx = Vy
@@ -241,29 +241,37 @@ impl Chippy {
             }
             // 0xDxyn: DISPLAY
             0xD000 => {
-                let x = self.v[((opcode & 0x0F00) >> 8) as usize] as usize;
-                let y = self.v[((opcode & 0x00F0) >> 4) as usize] as usize;
-                let n = opcode & 0x000F;
+                let x = self.v[((opcode & 0x0F00) >> 8) as usize] as usize % 64;
+                let y = self.v[((opcode & 0x00F0) >> 4) as usize] as usize % 32;
+                let n = opcode & 0x0F;
 
                 self.v[0xF] = 0; // Reset VF
 
                 for row in 0..n {
-                    let pixel_row = self.memory[(self.i + row) as usize];
-                    for col in 0..8 {
-                        let pixel_value = (pixel_row >> (7 - col)) & 0x1;
-                        let pixel_x = (x + col) % 64;
-                        let pixel_y = (y + row as usize) % 32;
-                        let pixel_index = pixel_y * 64 + pixel_x;
+                    let sprite = self.memory[(self.i + row) as usize];
+                    let mut pixel_row = sprite;
 
-                        if self.display[pixel_index] == 1 && pixel_value == 1 {
-                            self.v[0xF] = 1; // Set VF if collision occurs
+                    let mut pixel_x = x;
+                    let pixel_y = (y + row as usize) % 32;
+
+                    for _ in 0..8 {
+                        let pixel_value = pixel_row >> 7;
+                        let pixel_index = (pixel_y * 64 + pixel_x) as usize;
+
+                        if pixel_value == 1 {
+                            if self.display[pixel_index] != 0 {
+                                self.display[pixel_index] = 0;
+                                self.v[0xF] = 1; // Set VF if collision occurs
+                            } else {
+                                self.display[pixel_index] = 1;
+                            }
                         }
 
-                        self.display[pixel_index] ^= pixel_value;
+                        pixel_row <<= 1;
+                        pixel_x = (pixel_x + 1) % 64;
                     }
                 }
 
-                // Set `i` to the address following the sprite data
                 self.i += n;
             }
 
@@ -326,7 +334,7 @@ impl Chippy {
                     0x0029 => {
                         let x: usize = ((opcode & 0x0F00) >> 8) as usize;
                         let character: u8 = self.v[x];
-                        self.i = (character as u16 * 5);
+                        self.i = character as u16 * 5;
                     }
                     // 0xFx33: Store BCD representation of Vx in memory locations I, I+1, and I+2
                     0x0033 => {
@@ -387,29 +395,27 @@ impl Chippy {
     }
 
     fn init_font(&mut self) {
-        let characters: [[u8; 5]; 16] = [
-            [0xF0, 0x90, 0x90, 0x90, 0xF0], // 0
-            [0x20, 0x60, 0x20, 0x20, 0x70], // 1
-            [0xF0, 0x10, 0xF0, 0x80, 0xF0], // 2
-            [0xF0, 0x10, 0xF0, 0x10, 0xF0], // 3
-            [0x90, 0x90, 0xF0, 0x10, 0x10], // 4
-            [0xF0, 0x80, 0xF0, 0x10, 0xF0], // 5
-            [0xF0, 0x80, 0xF0, 0x90, 0xF0], // 6
-            [0xF0, 0x10, 0x20, 0x40, 0x40], // 7
-            [0xF0, 0x90, 0xF0, 0x90, 0xF0], // 8
-            [0xF0, 0x90, 0xF0, 0x10, 0xF0], // 9
-            [0xF0, 0x90, 0xF0, 0x90, 0x90], // A
-            [0xE0, 0x90, 0xE0, 0x90, 0xE0], // B
-            [0xF0, 0x80, 0x80, 0x80, 0xF0], // C
-            [0xE0, 0x90, 0x90, 0x90, 0xE0], // D
-            [0xF0, 0x80, 0xF0, 0x80, 0xF0], // E
-            [0xF0, 0x80, 0xF0, 0x80, 0x80], // F
+        let characters = [
+            0xF0, 0x90, 0x90, 0x90, 0xF0, // 0
+            0x20, 0x60, 0x20, 0x20, 0x70, // 1
+            0xF0, 0x10, 0xF0, 0x80, 0xF0, // 2
+            0xF0, 0x10, 0xF0, 0x10, 0xF0, // 3
+            0x90, 0x90, 0xF0, 0x10, 0x10, // 4
+            0xF0, 0x80, 0xF0, 0x10, 0xF0, // 5
+            0xF0, 0x80, 0xF0, 0x90, 0xF0, // 6
+            0xF0, 0x10, 0x20, 0x40, 0x40, // 7
+            0xF0, 0x90, 0xF0, 0x90, 0xF0, // 8
+            0xF0, 0x90, 0xF0, 0x10, 0xF0, // 9
+            0xF0, 0x90, 0xF0, 0x90, 0x90, // A
+            0xE0, 0x90, 0xE0, 0x90, 0xE0, // B
+            0xF0, 0x80, 0x80, 0x80, 0xF0, // C
+            0xE0, 0x90, 0x90, 0x90, 0xE0, // D
+            0xF0, 0x80, 0xF0, 0x80, 0xF0, // E
+            0xF0, 0x80, 0xF0, 0x80, 0x80, // F
         ];
 
         for (i, character) in characters.iter().enumerate() {
-            for (j, &byte) in character.iter().enumerate() {
-                self.memory[i * 5 + j] = byte;
-            }
+            self.memory[i] = *character;
         }
     }
 
