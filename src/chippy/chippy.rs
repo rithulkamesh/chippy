@@ -105,7 +105,6 @@ impl Chippy {
         let opcode = (self.memory[self.pc as usize] as u16) << 8
             | self.memory[(self.pc + 1) as usize] as u16;
 
-        println!("Executing opcode: {:X}", opcode);
         match opcode & 0xF000 {
             // 0xAnnn: Set I to nnn
             0xA000 => self.i = opcode & 0x0FFF,
@@ -242,29 +241,24 @@ impl Chippy {
             }
             // 0xDxyn: DISPLAY
             0xD000 => {
-                let x = ((opcode & 0x0F00) >> 8) as usize;
-                let y = ((opcode & 0x00F0) >> 4) as usize;
+                let x = self.v[((opcode & 0x0F00) >> 8) as usize] as usize;
+                let y = self.v[((opcode & 0x00F0) >> 4) as usize] as usize;
                 let n = opcode & 0x000F;
 
-                if n > 0 {
-                    for row in 0..n {
-                        let sprite_byte = self.memory[(self.i as usize) + row as usize];
-                        let y_pos = (self.v[y] as usize + row as usize) % 32;
+                self.v[0xF] = 0;
+                for row in 0..n {
+                    let pixel_row = self.memory[(self.i + row) as usize];
+                    for col in 0..8 {
+                        let pixel_value = (pixel_row >> (7 - col)) & 0x1;
+                        let pixel_x = (x + col) % 64;
+                        let pixel_y = (y + row as usize) % 32;
+                        let pixel_index = pixel_y * 64 + pixel_x;
 
-                        for col in 0..8 {
-                            let x_pos = (self.v[x] as usize + col) % 64;
-                            let pixel_value = (sprite_byte >> (7 - col)) & 0x01;
-
-                            let pixel_index = y_pos * 64 + x_pos;
-                            let old_pixel = self.display[pixel_index];
-                            self.display[pixel_index] ^= pixel_value;
-
-                            // Set VF if collision occurs
-                            if old_pixel == 1 && pixel_value == 1 && self.display[pixel_index] == 0
-                            {
-                                self.v[0xF] = 1;
-                            }
+                        if self.display[pixel_index] == 1 && pixel_value == 1 {
+                            self.v[0xF] = 1; // Set VF if collision occurs
                         }
+
+                        self.display[pixel_index] ^= pixel_value;
                     }
                 }
             }
@@ -328,7 +322,7 @@ impl Chippy {
                     0x0029 => {
                         let x = ((opcode & 0x0F00) >> 8) as usize;
                         let character = self.v[x];
-                        self.i = (0x50 + (character as u16 * 5)) & 0xFFFF;
+                        self.i = (character as u16 * 5) & 0xFFFF;
                     }
                     // 0xFx33: Store BCD representation of Vx in memory locations I, I+1, and I+2
                     0x0033 => {
@@ -411,7 +405,7 @@ impl Chippy {
         // Put it at 050-09F
         for (i, character) in characters.iter().enumerate() {
             for (j, &byte) in character.iter().enumerate() {
-                self.memory[0x50 + i * 5 + j] = byte;
+                self.memory[i * 5 + j] = byte;
             }
         }
     }
